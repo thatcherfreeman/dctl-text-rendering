@@ -1,0 +1,74 @@
+
+DEFINE_UI_PARAMS(text_x, Text X position, DCTLUI_SLIDER_FLOAT, 0.0, 0.0, 1.0, 0.01)
+DEFINE_UI_PARAMS(text_y, Text Y position, DCTLUI_SLIDER_FLOAT, 0.5, 0.0, 1.0, 0.01)
+DEFINE_UI_PARAMS(waveform_y, Waveform Y position, DCTLUI_SLIDER_FLOAT, 0.5, 0.0, 1.0, 0.01)
+DEFINE_UI_PARAMS(scale, Scale, DCTLUI_SLIDER_FLOAT, 0.06, 0.0, 1.0, 0.01)
+
+#include "HelvetiPixel.h"
+
+typedef struct {
+        float x, y;  // some specified position on the screen, refers to the top left corner of a string or character.
+        float scale; // proportion of the height of the frame.
+        float waveform_y; // Y-coordinate of where this char should be on the waveform.
+} char_trans_t;
+
+typedef struct {
+        float x, y; // Current position on the screen, 0, 0 is top left corner, 1,1 is bottom right.
+} curr_pos_t;
+
+__DEVICE__ void draw_char(char c, __PRIVATE__ char_trans_t* char_trans, __PRIVATE__ curr_pos_t* curr_pos, __PRIVATE__ float3* curr_color) {
+    float char_height = char_trans->scale;
+    float char_width = char_trans->scale * FONT_WIDTH / FONT_HEIGHT;
+
+    // First check if currpos x and y are even within the domain of the char.
+    if (char_trans->x <= curr_pos->x && curr_pos->x <= char_trans->x + char_width && char_trans->y <= curr_pos->y &&
+        curr_pos->y <= char_trans->y + char_height) {
+
+        // Then see if the current pixel should be set to black.
+        __CONSTANTREF__ int* char_symbol = &font[c][0];
+
+        // Identify the current pixel index within the char_symbol.
+        int row = (int)_round((curr_pos->y - char_trans->y) / char_height * FONT_HEIGHT);
+        int col = (int)_round((curr_pos->x - char_trans->x) / char_width * FONT_WIDTH);
+
+        if (char_symbol[row] & (1 << col)) {
+            float lum = _mix(char_trans->waveform_y, char_trans->waveform_y - char_height, (curr_pos->y - char_trans->y) / char_height);
+            *curr_color = make_float3(lum, lum, lum);
+        }
+    }
+}
+
+__DEVICE__ void
+draw_string(char str[], __PRIVATE__ char_trans_t* char_trans, __PRIVATE__ curr_pos_t* curr_pos, __PRIVATE__ float3* curr_color) {
+    int i = 0;
+    char c = str[0];
+    float c_width;
+    char_trans_t c_trans = *char_trans;
+    while (c != '\0') {
+        draw_char(c, &c_trans, curr_pos, curr_color);
+
+        c_width = font_widths[c];
+        i += 1;
+        c = str[i];
+        // move one char to the right the width of the last drawn char on the screen.
+        c_trans.x += c_trans.scale * c_width / FONT_HEIGHT;
+        c_trans.y += 0;
+    }
+}
+
+__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B) {
+    float3 curr_color = make_float3(p_R, p_G, p_B);
+    curr_pos_t curr_pos = {
+        (float)p_X / (float)p_Height, // dividing by height instead of width to correct aspect ratio of characters.
+        (float)p_Y / (float)p_Height,
+    };
+    char_trans_t str_trans = {text_x, text_y, scale, waveform_y};
+
+    char the_string[] = "the quick brown fox jumped over the lazy dog.";
+    char the_string2[] = "THE QUICK BROWN FOX JUMPED OVER THE LAZY DOG.";
+    draw_string(the_string, &str_trans, &curr_pos, &curr_color);
+    str_trans.y += scale;
+    str_trans.waveform_y -= scale;
+    draw_string(the_string2, &str_trans, &curr_pos, &curr_color);
+    return curr_color;
+}
