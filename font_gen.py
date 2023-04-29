@@ -42,7 +42,8 @@ if __name__ == "__main__":
     for c, arr in font_dict.items():
         try:
             d = int(c)
-            char_dict[d] = arr
+            if d < 128:
+                char_dict[d] = arr
         except ValueError:
             # Ignore keys that don't look like numbers
             continue
