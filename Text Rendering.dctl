@@ -1,6 +1,8 @@
 
+DEFINE_UI_PARAMS(number, Number, DCTLUI_SLIDER_FLOAT, 1.0, -10.0, 10.0, 0.01)
 DEFINE_UI_PARAMS(text_x, Text X position, DCTLUI_SLIDER_FLOAT, 0.0, 0.0, 1.0, 0.01)
 DEFINE_UI_PARAMS(text_y, Text Y position, DCTLUI_SLIDER_FLOAT, 0.5, 0.0, 1.0, 0.01)
+DEFINE_UI_PARAMS(num_chars, Displayed float chars, DCTLUI_SLIDER_INT, 4, 0, 40, 1)
 DEFINE_UI_PARAMS(scale, Scale, DCTLUI_SLIDER_FLOAT, 0.06, 0.0, 1.0, 0.01)
 
 #include "HelvetiPixel.h"
@@ -41,7 +43,7 @@ draw_string(char str[], __PRIVATE__ char_trans_t* char_trans, __PRIVATE__ curr_p
     char c = str[0];
     float c_width;
     char_trans_t c_trans = *char_trans;
-    while (c != '\0') {
+    while (c != '\0' && c != 0) {
         draw_char(c, &c_trans, curr_pos, curr_color);
 
         c_width = font_widths[c];
@@ -51,6 +53,95 @@ draw_string(char str[], __PRIVATE__ char_trans_t* char_trans, __PRIVATE__ curr_p
         c_trans.x += c_trans.scale * c_width / FONT_HEIGHT;
         c_trans.y += 0;
     }
+}
+
+__DEVICE__ void strcpy_idx(char str_src[], char str_dst[], int src_start_idx, int dst_start_idx, int num_chars) {
+    for (int i = 0; i < num_chars; ++i) {
+        str_dst[dst_start_idx + i] = str_src[src_start_idx + i];
+    }
+}
+
+__DEVICE__ int strlen(char a[]) {
+    int i = 0;
+    while (a[i] != '\0' && a[i] != 0) {
+        ++i;
+    }
+    return i;
+}
+
+__DEVICE__ void strcat(char a[], char b[], char dest[]) {
+    int len_a = strlen(a);
+    int len_b = strlen(b);
+    if (a != dest) {
+        strcpy_idx(a, dest, 0, 0, len_a);
+    }
+    strcpy_idx(b, dest, 0, len_a, len_b);
+    dest[len_a + len_b] = '\0';
+}
+
+__DEVICE__ char digit2char(int i) {
+    return (char)('0' + i);
+}
+
+/**
+ * converts `f` to a string, writing to `output`. Places up to `left_digits` on the left side
+ * of the decimal point, and places `right_digits` digits on the right side.
+ */
+__DEVICE__ void float2str(float f, char output[], int num_chars) {
+    int runner = 0;
+
+    // First char is neg sign, if necessary
+    char inf[] = "inf";
+    char nan[] = "NaN";
+    char zero[] = "0.";
+
+    if (f < 0) {
+        output[runner] = '-';
+        runner++;
+    }
+    if (isinf(f)) {
+        strcpy_idx(inf, output, 0, runner, strlen(inf));
+        runner += strlen(inf);
+    } else if (isnan(f)) {
+        strcpy_idx(nan, output, 0, runner, strlen(nan));
+        runner += strlen(nan);
+    } else if (f == 0.0) {
+        strcpy_idx(zero, output, 0, runner, strlen(zero));
+        // strcat(output, zero, output);
+        runner += strlen(zero);
+        for (; runner < num_chars; ++runner) {
+            output[runner] = '0';
+        }
+    } else {
+        // input is real number, print absolute value.
+        f = _fabs(f);
+        // num digits before decimal point
+        int left_digits = (int)(_log10f(f) + 1);
+        if (f < 1.0) {
+            // want to pad left side with zero.
+            left_digits = 1;
+        }
+        int right_digits = num_chars - left_digits - runner - 1;
+
+        // Extract left digits
+        for (int i = left_digits; i > 0 && runner < num_chars; --i, ++runner) {
+            float base = _powf(10.0, i - 1);
+            int d = (int)_truncf(f / base);
+            f = _fmod(f, base);
+            output[runner] = digit2char(d);
+        }
+        if (runner < num_chars) {
+            output[runner] = '.';
+            runner += 1;
+        }
+        for (int i = 0; i > (-1 * right_digits) && runner < num_chars; --i, ++runner) {
+            float base = _powf(10.0, i - 1);
+            int d = (int)_truncf(f / base);
+            f = _fmod(f, base);
+            output[runner] = digit2char(d);
+        }
+    }
+    output[runner] = '\0';
 }
 
 __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B) {
@@ -66,5 +157,25 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
     draw_string(the_string, &str_trans, &curr_pos, &curr_color);
     str_trans.y += scale;
     draw_string(the_string2, &str_trans, &curr_pos, &curr_color);
+
+    char number_buffer[30];
+    char string_buffer[100];
+    char log10str[] = "log10(number) = ";
+    float2str(_log10f(number), number_buffer, num_chars);
+    strcat(log10str, number_buffer, string_buffer);
+    str_trans.y += scale;
+    draw_string(string_buffer, &str_trans, &curr_pos, &curr_color);
+
+    char divstr[] = "1.0/number = ";
+    float2str(1.0 / number, number_buffer, num_chars);
+    strcat(divstr, number_buffer, string_buffer);
+    str_trans.y += scale;
+    draw_string(string_buffer, &str_trans, &curr_pos, &curr_color);
+
+    char expstr[] = "exp(number) = ";
+    float2str(_expf(number), number_buffer, num_chars);
+    strcat(expstr, number_buffer, string_buffer);
+    str_trans.y += scale;
+    draw_string(string_buffer, &str_trans, &curr_pos, &curr_color);
     return curr_color;
 }
