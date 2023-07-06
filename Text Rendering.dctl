@@ -144,6 +144,38 @@ __DEVICE__ void float2str(float f, char output[], int num_chars) {
     output[runner] = '\0';
 }
 
+
+__DEVICE__ void int2str(int f, char output[], int num_chars) {
+    int runner = 0;
+
+    // First char is neg sign, if necessary
+    char zero[] = "0";
+
+    if (f < 0) {
+        output[runner] = '-';
+        runner++;
+    }
+    if (f == 0) {
+        strcpy_idx(zero, output, 0, runner, strlen(zero));
+        // strcat(output, zero, output);
+        runner += strlen(zero);
+    } else {
+        // input is real number, print absolute value.
+        f = (int)_round(_fabs(f));
+        // num digits before decimal point
+        int left_digits = (int)(_log10f(f) + 1);
+
+        // Extract left digits
+        for (int i = left_digits; i > 0 && runner < num_chars; --i, ++runner) {
+            float base = _powf(10.0, i - 1);
+            int d = (int)_truncf(f / base);
+            f = _fmod(f, base);
+            output[runner] = digit2char(d);
+        }
+    }
+    output[runner] = '\0';
+}
+
 __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B) {
     float3 curr_color = make_float3(p_R, p_G, p_B);
     curr_pos_t curr_pos = {
@@ -175,6 +207,12 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
     char expstr[] = "exp(number) = ";
     float2str(_expf(number), number_buffer, num_chars);
     strcat(expstr, number_buffer, string_buffer);
+    str_trans.y += scale;
+    draw_string(string_buffer, &str_trans, &curr_pos, &curr_color);
+
+    char intstr[] = "(int)(number**3) = ";
+    int2str((int)(number * number * number), number_buffer, num_chars);
+    strcat(intstr, number_buffer, string_buffer);
     str_trans.y += scale;
     draw_string(string_buffer, &str_trans, &curr_pos, &curr_color);
     return curr_color;
