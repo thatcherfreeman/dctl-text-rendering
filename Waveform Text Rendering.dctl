@@ -1,20 +1,37 @@
-
+// clang-format off
 DEFINE_UI_PARAMS(text_x, Text X position, DCTLUI_SLIDER_FLOAT, 0.0, 0.0, 1.0, 0.01)
 DEFINE_UI_PARAMS(text_y, Text Y position, DCTLUI_SLIDER_FLOAT, 0.5, 0.0, 1.0, 0.01)
 DEFINE_UI_PARAMS(waveform_y, Waveform Y position, DCTLUI_SLIDER_FLOAT, 0.5, 0.0, 1.0, 0.01)
 DEFINE_UI_PARAMS(scale, Scale, DCTLUI_SLIDER_FLOAT, 0.06, 0.0, 1.0, 0.01)
+// clang-format on
 
 #include "HelvetiPixel.h"
 
 typedef struct {
-        float x, y;  // some specified position on the screen, refers to the top left corner of a string or character.
-        float scale; // proportion of the height of the frame.
+        float x, y;       // some specified position on the screen, refers to the top left corner of a string or character.
+        float scale;      // proportion of the height of the frame.
         float waveform_y; // Y-coordinate of where this char should be on the waveform.
 } char_trans_t;
 
 typedef struct {
         float x, y; // Current position on the screen, 0, 0 is top left corner, 1,1 is bottom right.
 } curr_pos_t;
+
+__DEVICE__ char_trans_t make_char_trans(float x, float y, float scale, float waveform_y) {
+    char_trans_t result = {};
+    result.x = x;
+    result.y = y;
+    result.scale = scale;
+    result.waveform_y = waveform_y;
+    return result;
+}
+
+__DEVICE__ curr_pos_t make_curr_pos(float x, float y) {
+    curr_pos_t result = {};
+    result.x = x;
+    result.y = y;
+    return result;
+}
 
 __DEVICE__ void draw_char(char c, __PRIVATE__ char_trans_t* char_trans, __PRIVATE__ curr_pos_t* curr_pos, __PRIVATE__ float3* curr_color) {
     float char_height = char_trans->scale;
@@ -58,11 +75,10 @@ draw_string(char str[], __PRIVATE__ char_trans_t* char_trans, __PRIVATE__ curr_p
 
 __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B) {
     float3 curr_color = make_float3(p_R, p_G, p_B);
-    curr_pos_t curr_pos = {
-        (float)p_X / (float)p_Height, // dividing by height instead of width to correct aspect ratio of characters.
-        (float)p_Y / (float)p_Height,
-    };
-    char_trans_t str_trans = {text_x, text_y, scale, waveform_y};
+    curr_pos_t curr_pos =
+        make_curr_pos((float)p_X / (float)p_Height, // dividing by height instead of width to correct aspect ratio of characters.
+                      (float)p_Y / (float)p_Height);
+    char_trans_t str_trans = make_char_trans(text_x, text_y, scale, waveform_y);
 
     char the_string[] = "the quick brown fox jumped over the lazy dog.";
     char the_string2[] = "THE QUICK BROWN FOX JUMPED OVER THE LAZY DOG.";
