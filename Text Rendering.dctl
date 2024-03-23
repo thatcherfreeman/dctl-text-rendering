@@ -2,6 +2,7 @@
 DEFINE_UI_PARAMS(number, Number, DCTLUI_SLIDER_FLOAT, 1.0, -10.0, 10.0, 0.01)
 DEFINE_UI_PARAMS(text_x, Text X position, DCTLUI_SLIDER_FLOAT, 0.0, 0.0, 1.0, 0.01)
 DEFINE_UI_PARAMS(text_y, Text Y position, DCTLUI_SLIDER_FLOAT, 0.5, 0.0, 1.0, 0.01)
+DEFINE_UI_PARAMS(text_lum, Text Color, DCTLUI_SLIDER_FLOAT, 0.5, 0.0, 1.0, 0.01)
 DEFINE_UI_PARAMS(num_chars, Displayed float chars, DCTLUI_SLIDER_INT, 4, 0, 40, 1)
 DEFINE_UI_PARAMS(scale, Scale, DCTLUI_SLIDER_FLOAT, 0.06, 0.0, 1.0, 0.01)
 // clang-format on
@@ -32,7 +33,8 @@ __DEVICE__ curr_pos_t make_curr_pos(float x, float y) {
     return result;
 }
 
-__DEVICE__ void draw_char(char c, __PRIVATE__ char_trans_t* char_trans, __PRIVATE__ curr_pos_t* curr_pos, __PRIVATE__ float3* curr_color) {
+__DEVICE__ void draw_char(
+    char c, float3 char_color, __PRIVATE__ char_trans_t* char_trans, __PRIVATE__ curr_pos_t* curr_pos, __PRIVATE__ float3* curr_color) {
     float char_height = char_trans->scale;
     float char_width = char_trans->scale * FONT_WIDTH / FONT_HEIGHT;
 
@@ -48,19 +50,19 @@ __DEVICE__ void draw_char(char c, __PRIVATE__ char_trans_t* char_trans, __PRIVAT
         int col = (int)_round((curr_pos->x - char_trans->x) / char_width * FONT_WIDTH);
 
         if (char_symbol[row] & (1 << col)) {
-            *curr_color = make_float3(0.0, 0.0, 0.0);
+            *curr_color = char_color;
         }
     }
 }
 
-__DEVICE__ void
-draw_string(char str[], __PRIVATE__ char_trans_t* char_trans, __PRIVATE__ curr_pos_t* curr_pos, __PRIVATE__ float3* curr_color) {
+__DEVICE__ void draw_string(
+    char str[], float3 str_color, __PRIVATE__ char_trans_t* char_trans, __PRIVATE__ curr_pos_t* curr_pos, __PRIVATE__ float3* curr_color) {
     int i = 0;
     char c = str[0];
     float c_width;
     char_trans_t c_trans = *char_trans;
     while (c != '\0' && c != 0) {
-        draw_char(c, &c_trans, curr_pos, curr_color);
+        draw_char(c, str_color, &c_trans, curr_pos, curr_color);
 
         c_width = font_widths[c];
         i += 1;
@@ -198,11 +200,13 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
                       (float)p_Y / (float)p_Height);
     char_trans_t str_trans = make_char_trans(text_x, text_y, scale);
 
+    float3 text_color = make_float3(text_lum, text_lum, text_lum);
+
     char the_string[] = "the quick brown fox jumped over the lazy dog.";
     char the_string2[] = "THE QUICK BROWN FOX JUMPED OVER THE LAZY DOG.";
-    draw_string(the_string, &str_trans, &curr_pos, &curr_color);
+    draw_string(the_string, text_color, &str_trans, &curr_pos, &curr_color);
     str_trans.y += scale;
-    draw_string(the_string2, &str_trans, &curr_pos, &curr_color);
+    draw_string(the_string2, text_color, &str_trans, &curr_pos, &curr_color);
 
     char number_buffer[30];
     char string_buffer[100];
@@ -210,24 +214,24 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
     float2str(_log10f(number), number_buffer, num_chars);
     strcat(log10str, number_buffer, string_buffer);
     str_trans.y += scale;
-    draw_string(string_buffer, &str_trans, &curr_pos, &curr_color);
+    draw_string(string_buffer, text_color, &str_trans, &curr_pos, &curr_color);
 
     char divstr[] = "1.0/number = ";
     float2str(1.0 / number, number_buffer, num_chars);
     strcat(divstr, number_buffer, string_buffer);
     str_trans.y += scale;
-    draw_string(string_buffer, &str_trans, &curr_pos, &curr_color);
+    draw_string(string_buffer, text_color, &str_trans, &curr_pos, &curr_color);
 
     char expstr[] = "exp(number) = ";
     float2str(_expf(number), number_buffer, num_chars);
     strcat(expstr, number_buffer, string_buffer);
     str_trans.y += scale;
-    draw_string(string_buffer, &str_trans, &curr_pos, &curr_color);
+    draw_string(string_buffer, text_color, &str_trans, &curr_pos, &curr_color);
 
     char intstr[] = "(int)(number**3) = ";
     int2str((int)(number * number * number), number_buffer, num_chars);
     strcat(intstr, number_buffer, string_buffer);
     str_trans.y += scale;
-    draw_string(string_buffer, &str_trans, &curr_pos, &curr_color);
+    draw_string(string_buffer, text_color, &str_trans, &curr_pos, &curr_color);
     return curr_color;
 }
