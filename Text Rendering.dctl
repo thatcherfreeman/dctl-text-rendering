@@ -33,6 +33,14 @@ __DEVICE__ curr_pos_t make_curr_pos(float x, float y) {
     return result;
 }
 
+__DEVICE__ float string_width(char str[], float scale) {
+    float width = 0;
+    for (int i = 0; str[i] != '\0' && str[i] != 0; ++i) {
+        width += scale * font_widths[str[i]] / FONT_HEIGHT;
+    }
+    return width;
+}
+
 __DEVICE__ void draw_char(
     char c, float3 char_color, __PRIVATE__ char_trans_t* char_trans, __PRIVATE__ curr_pos_t* curr_pos, __PRIVATE__ float3* curr_color) {
     float char_height = char_trans->scale;
@@ -71,6 +79,22 @@ __DEVICE__ void draw_string(
         c_trans.x += c_trans.scale * c_width / FONT_HEIGHT;
         c_trans.y += 0;
     }
+}
+
+__DEVICE__ void draw_string_centered(
+    char str[], float3 str_color, __PRIVATE__ char_trans_t* char_trans, __PRIVATE__ curr_pos_t* curr_pos, __PRIVATE__ float3* curr_color) {
+    float str_width = string_width(str, char_trans->scale);
+    char_trans->x -= str_width / 2.0;
+    draw_string(str, str_color, char_trans, curr_pos, curr_color);
+    char_trans->x += str_width / 2.0;
+}
+
+__DEVICE__ void draw_string_right_justified(
+    char str[], float3 str_color, __PRIVATE__ char_trans_t* char_trans, __PRIVATE__ curr_pos_t* curr_pos, __PRIVATE__ float3* curr_color) {
+    float str_width = string_width(str, char_trans->scale);
+    char_trans->x -= str_width;
+    draw_string(str, str_color, char_trans, curr_pos, curr_color);
+    char_trans->x += str_width;
 }
 
 __DEVICE__ void strcpy_idx(char str_src[], char str_dst[], int src_start_idx, int dst_start_idx, int num_chars) {
@@ -196,8 +220,8 @@ __DEVICE__ void int2str(int f, char output[], int num_chars) {
 __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B) {
     float3 curr_color = make_float3(p_R, p_G, p_B);
     curr_pos_t curr_pos =
-        make_curr_pos((float)p_X / (float)p_Height, // dividing by height instead of width to correct aspect ratio of characters.
-                      (float)p_Y / (float)p_Height);
+        make_curr_pos((float)p_X / (float)(p_Height - 1), // dividing by height instead of width to correct aspect ratio of characters.
+                      (float)p_Y / (float)(p_Height - 1));
     char_trans_t str_trans = make_char_trans(text_x, text_y, scale);
 
     float3 text_color = make_float3(text_lum, text_lum, text_lum);
@@ -207,6 +231,13 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
     draw_string(the_string, text_color, &str_trans, &curr_pos, &curr_color);
     str_trans.y += scale;
     draw_string(the_string2, text_color, &str_trans, &curr_pos, &curr_color);
+
+    char centered_string[] = "centered text.";
+    char rj_string[] = "right justified text.";
+    str_trans.y += scale;
+    draw_string_centered(centered_string, text_color, &str_trans, &curr_pos, &curr_color);
+    str_trans.y += scale;
+    draw_string_right_justified(rj_string, text_color, &str_trans, &curr_pos, &curr_color);
 
     char number_buffer[30];
     char string_buffer[100];
