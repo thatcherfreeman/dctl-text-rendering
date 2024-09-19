@@ -5,6 +5,7 @@ DEFINE_UI_PARAMS(text_y, Text Y position, DCTLUI_SLIDER_FLOAT, 0.5, 0.0, 1.0, 0.
 DEFINE_UI_PARAMS(text_lum, Text Color, DCTLUI_SLIDER_FLOAT, 0.5, 0.0, 1.0, 0.01)
 DEFINE_UI_PARAMS(num_chars, Displayed float chars, DCTLUI_SLIDER_INT, 4, 0, 40, 1)
 DEFINE_UI_PARAMS(scale, Scale, DCTLUI_SLIDER_FLOAT, 0.06, 0.0, 1.0, 0.01)
+DEFINE_UI_PARAMS(drop_shadow, Drop Shadow, DCTLUI_CHECK_BOX, 0)
 // clang-format on
 
 #include "HelvetiPixel.h"
@@ -79,6 +80,27 @@ __DEVICE__ void draw_string(
         c_trans.x += c_trans.scale * c_width / FONT_HEIGHT;
         c_trans.y += 0;
     }
+}
+
+__DEVICE__ void draw_string_drop_shadow(char str[],
+                                        float3 str_color,
+                                        __PRIVATE__ char_trans_t* char_trans,
+                                        __PRIVATE__ curr_pos_t* curr_pos,
+                                        __PRIVATE__ float3* curr_color,
+                                        float3 shadow_color,
+                                        float shadow_angle_deg,
+                                        float shadow_distance) {
+    // Shadow Angle degrees to radians
+    float shadow_angle_rad = shadow_angle_deg * 3.14159265358979323846 / 180.0;
+
+    // Draw shadow
+    char_trans_t shadow_position = make_char_trans(char_trans->x + _cosf(shadow_angle_rad) * shadow_distance,
+                                                   char_trans->y + _sinf(shadow_angle_rad) * shadow_distance,
+                                                   char_trans->scale);
+    draw_string(str, shadow_color, &shadow_position, curr_pos, curr_color);
+
+    // Draw text
+    draw_string(str, str_color, char_trans, curr_pos, curr_color);
 }
 
 __DEVICE__ void draw_string_centered(
@@ -228,9 +250,15 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
 
     char the_string[] = "the quick brown fox jumped over the lazy dog.";
     char the_string2[] = "THE QUICK BROWN FOX JUMPED OVER THE LAZY DOG.";
-    draw_string(the_string, text_color, &str_trans, &curr_pos, &curr_color);
-    str_trans.y += scale;
-    draw_string(the_string2, text_color, &str_trans, &curr_pos, &curr_color);
+    if (drop_shadow) {
+        draw_string_drop_shadow(the_string, text_color, &str_trans, &curr_pos, &curr_color, make_float3(0.0, 0.0, 0.0), 45.0, scale * 0.03);
+        str_trans.y += scale;
+        draw_string_drop_shadow(the_string2, text_color, &str_trans, &curr_pos, &curr_color, make_float3(0.0, 0.0, 0.0), 45.0, scale * 0.03);
+    } else {
+        draw_string(the_string, text_color, &str_trans, &curr_pos, &curr_color);
+        str_trans.y += scale;
+        draw_string(the_string2, text_color, &str_trans, &curr_pos, &curr_color);
+    }
 
     char centered_string[] = "centered text.";
     char rj_string[] = "right justified text.";
