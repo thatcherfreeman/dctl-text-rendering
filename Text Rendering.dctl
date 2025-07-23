@@ -261,7 +261,8 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
     if (drop_shadow) {
         draw_string_drop_shadow(the_string, text_color, &str_trans, &curr_pos, &curr_color, make_float3(0.0, 0.0, 0.0), 45.0, scale * 0.03);
         str_trans.y += scale;
-        draw_string_drop_shadow(the_string2, text_color, &str_trans, &curr_pos, &curr_color, make_float3(0.0, 0.0, 0.0), 45.0, scale * 0.03);
+        draw_string_drop_shadow(
+            the_string2, text_color, &str_trans, &curr_pos, &curr_color, make_float3(0.0, 0.0, 0.0), 45.0, scale * 0.03);
     } else {
         draw_string(the_string, text_color, &str_trans, &curr_pos, &curr_color);
         str_trans.y += scale;
