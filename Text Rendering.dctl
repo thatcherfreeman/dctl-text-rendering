@@ -239,6 +239,14 @@ __DEVICE__ void int2str(int f, char output[], int num_chars) {
     output[runner] = '\0';
 }
 
+__DEVICE__ inline int checksum_string(char str[]) {
+    // This stupid fucking function exists only because on AMD, the compiler optimizes away strings that aren't being used
+    // but they're really generous about what they consider to be unused. As a result, we need to demonstrate that a string is
+    // used by explicitly reading from it and then doing something with that value.
+    int sum = str[0];
+    return sum;
+}
+
 __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B) {
     float3 curr_color = make_float3(p_R, p_G, p_B);
     curr_pos_t curr_pos =
@@ -267,30 +275,39 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
     str_trans.y += scale;
     draw_string_right_justified(rj_string, text_color, &str_trans, &curr_pos, &curr_color);
 
-    char number_buffer[30];
-    char string_buffer[100];
+    char number_buffer[30] = {0};
+    char string_buffer[100] = {0};
+    int net_checksum = 1;
+
     char log10str[] = "log10(number) = ";
     float2str(_log10f(number), number_buffer, num_chars);
+    net_checksum += checksum_string(number_buffer);
     strcat(log10str, number_buffer, string_buffer);
     str_trans.y += scale;
     draw_string(string_buffer, text_color, &str_trans, &curr_pos, &curr_color);
 
     char divstr[] = "1.0/number = ";
     float2str(1.0 / number, number_buffer, num_chars);
+    net_checksum += checksum_string(number_buffer);
     strcat(divstr, number_buffer, string_buffer);
     str_trans.y += scale;
     draw_string(string_buffer, text_color, &str_trans, &curr_pos, &curr_color);
 
     char expstr[] = "exp(number) = ";
     float2str(_expf(number), number_buffer, num_chars);
+    net_checksum += checksum_string(number_buffer);
     strcat(expstr, number_buffer, string_buffer);
     str_trans.y += scale;
     draw_string(string_buffer, text_color, &str_trans, &curr_pos, &curr_color);
 
     char intstr[] = "(int)(number**3) = ";
     int2str((int)(number * number * number), number_buffer, num_chars);
+    net_checksum += checksum_string(number_buffer);
     strcat(intstr, number_buffer, string_buffer);
     str_trans.y += scale;
     draw_string(string_buffer, text_color, &str_trans, &curr_pos, &curr_color);
+
+    // Trick the compiler by using the checksum in a way that doesn't actually do anything. Net checksum is always greater than 0.
+    curr_color.x *= net_checksum > 0;
     return curr_color;
 }
